@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pomodoro Taza Espresso</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+</head>
+<body>
+  <h1>Pomodoro Taza Espresso</h1>
+
+  <div id="taza-container">
+    <video id="taza-video" muted loop playsinline>
+      <source src="{{ url_for('static', filename='video/espresso-cup6.mp4') }}" type="video/mp4" />
+      Tu navegador no soporta video HTML5.
+    </video>
+  </div>
+
+  <div id="contador">20:00</div>
+
+  <div class="btn-container">
+    <button id="startBtn" onclick="startPomodoro()">▶ Iniciar</button>
+    <button id="pauseBtn" onclick="pausePomodoro()" disabled>❚❚ Pausar</button>
+    <button id="resetBtn" onclick="resetPomodoro()">⟲ Reiniciar</button>
+  </div>
+
+  <div id="status-indicator"></div>
+
+  <script>
+    const duration = 20 * 60; // 20 minutos en segundos
+    let timeLeft = duration;
+    let timerInterval = null;
+
+    const contador = document.getElementById('contador');
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const statusIndicator = document.getElementById('status-indicator');
+    const tazaVideo = document.getElementById('taza-video');
+
+    function updateUI() {
+      const minutes = Math.floor(timeLeft / 60);
+      const seconds = timeLeft % 60;
+      contador.textContent = `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+
+      if (timerInterval) {
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        statusIndicator.textContent = "⏳ En marcha...";
+      } else {
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        statusIndicator.textContent = timeLeft === 0 ? "✔ ¡Terminado!" : "⏸ Pausado";
+      }
+    }
+
+    async function fetchStatus() {
+      try {
+        const response = await fetch('/status');
+        const data = await response.json();
+        timeLeft = data.time_left;
+        updateUI();
+        if (data.running && !timerInterval) {
+          startLocalTimer();
+          tazaVideo.play(); // Reproducir video si se detecta que el timer está corriendo
+        } else if (!data.running && timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          updateUI();
+          tazaVideo.pause(); // Pausar video si el timer no está corriendo
+        }
+      } catch (error) {
+        console.error('Error fetching status:', error);
+      }
+    }
+
+    function startLocalTimer() {
+      timerInterval = setInterval(() => {
+        if (timeLeft > 0) {
+          timeLeft--;
+          updateUI();
+        } else {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          updateUI();
+          alert("¡Tiempo terminado! ☕️");
+          tazaVideo.pause(); // Pausar video cuando termine el tiempo
+        }
+      }, 1000);
+      updateUI();
+    }
+
+    async function startPomodoro() {
+      await fetch('/start');
+      fetchStatus();
+      tazaVideo.play();          // Reproducir video al iniciar
+    }
+
+    async function pausePomodoro() {
+      await fetch('/pause');
+      fetchStatus();
+      tazaVideo.pause();         // Pausar video al pausar temporizador
+    }
+
+    async function resetPomodoro() {
+      await fetch('/reset');
+      fetchStatus();
+      tazaVideo.pause();         // Pausar video al reiniciar
+      tazaVideo.currentTime = 0; // Volver al inicio del video
+    }
+
+    // Sincronizar al cargar
+    fetchStatus();
+
+    // Refrescar estado cada 5 segundos
+    setInterval(fetchStatus, 5000);
+  </script>
+</body>
+</html>
+
+
